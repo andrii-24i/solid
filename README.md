@@ -79,3 +79,5 @@ For a more detailed Hello World guide check out the [Hello World](HelloWorld.md)
 ## Migrating from @lightningtv/solid
 
 This project used to live at https://github.com/lightning-tv/solid and was published as `@lightningtv/solid`. To move an existing app to `@solidtv/solid`, follow the [migration guide](https://solid-tv.github.io/solid/#/migrate).
+
+The [Roku proof](examples/roku/README.md) runs the existing SolidTV JSX and Row through the Roku RSG 2 SDK. It includes native mock tests and SDK package commands. Hardware behavior is not yet verified.

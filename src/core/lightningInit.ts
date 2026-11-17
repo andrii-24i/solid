@@ -1,3 +1,4 @@
+import { installRenderer } from './renderer.js';
 import * as lng from '@solidtv/renderer';
 import { prefetchFont } from '@solidtv/renderer';
 import { Config, DOM_RENDERING } from './config.js';
@@ -96,6 +97,8 @@ export function startLightningRenderer(
     aliasShManager(rendererMain);
     renderer = rendererMain;
   }
+
+  installRenderer(renderer);
 
   // A stage now exists, so any fonts requested before this point can finish.
   flushPendingFonts();

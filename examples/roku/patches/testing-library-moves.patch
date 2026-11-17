@@ -1,0 +1,26 @@
+--- a/src/testing-dom.ts
++++ b/src/testing-dom.ts
+@@ -90,6 +90,10 @@
+             const node = nodes.get(ref);
+             const childNode = nodes.get(childRef);
+             if (node && childNode) {
++                for (const parent of nodes.values()) {
++                    const index = parent.children.indexOf(childNode);
++                    if (index !== -1) parent.children.splice(index, 1);
++                }
+                 node.children.push(childNode);
+             }
+         });
+@@ -99,7 +103,11 @@
+             const node = nodes.get(ref);
+             const newChildNode = nodes.get(newChildRef);
+             const existingChildNode = nodes.get(existingChildRef);
+-            if (node && newChildNode && existingChildNode) {
++            if (node && newChildNode && existingChildNode && newChildNode !== existingChildNode) {
++                for (const parent of nodes.values()) {
++                    const index = parent.children.indexOf(newChildNode);
++                    if (index !== -1) parent.children.splice(index, 1);
++                }
+                 const index = node.children.indexOf(existingChildNode);
+                 if (index !== -1) {
+                     node.children.splice(index, 0, newChildNode);

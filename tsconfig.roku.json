@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "composite": false,
+    "types": ["solid-js", "vite/client", "@roku-sdk/interfaces/global"]
+  },
+  "include": ["vite-env.d.ts", "src/roku/**/*.ts"],
+  "exclude": []
+}

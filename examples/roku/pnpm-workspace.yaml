@@ -1,0 +1,9 @@
+packages:
+  - .
+allowBuilds:
+  "@roku-sdk/tooling": true
+  "@parcel/watcher": false
+  esbuild: false
+  unrs-resolver: false
+patchedDependencies:
+  "@roku-sdk/testing-library@2.19.1": patches/testing-library-moves.patch

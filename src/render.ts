@@ -1,57 +1,10 @@
-import { createRenderer as solidCreateRenderer } from 'solid-js/universal';
-import {
-  Config,
-  type NodeProps,
-  type TextProps,
-  startLightningRenderer,
-  type RendererMainSettings,
-  DomRendererMainSettings,
-} from './core/index.js';
-import nodeOpts from './solidOpts.js';
-import {
-  splitProps,
-  createMemo,
-  createRenderEffect,
-  untrack,
-  type JSXElement,
-  createRoot,
-  type Component,
-} from 'solid-js';
-import type { SolidNode } from './types.js';
-import { activeElement } from './core/activeElement.js';
-
-const solidRenderer = solidCreateRenderer<SolidNode>(nodeOpts);
-
-let renderer;
-export const rootNode = nodeOpts.createElement('App');
-
-const render = function (code: () => JSXElement) {
-  // @ts-expect-error - code is jsx element and not SolidElement yet
-  return solidRenderer.render(code, rootNode);
-};
-
-export function createRenderer(
-  rendererOptions?: RendererMainSettings | DomRendererMainSettings,
-  node?: HTMLElement | string,
-) {
-  const options = rendererOptions || Config.rendererOptions;
-
-  renderer = startLightningRenderer(options!, node || 'app');
-  rootNode.lng = renderer.root!;
-  rootNode.rendered = true;
-  renderer.on('idle', () => {
-    tasksEnabled = true;
-    processTasks();
-  });
-
-  return {
-    renderer,
-    rootNode,
-    render,
-  };
-}
-
-export const {
+import { Config } from './core/config.js';
+import { startLightningRenderer } from './core/lightningInit.js';
+import type { RendererMainSettings } from '@solidtv/renderer';
+import type { DomRendererMainSettings } from './core/dom-renderer/domRendererTypes.js';
+import { rootNode, render, setTasksEnabled } from './renderCore.js';
+export {
+  rootNode,
   effect,
   memo,
   createComponent,
@@ -62,111 +15,26 @@ export const {
   spread,
   setProp,
   use,
-} = solidRenderer;
+  mergeProps,
+  setTasksEnabled,
+  clearTasks,
+  scheduleTask,
+  Dynamic,
+  View,
+  Text,
+  registerDefaultShader,
+} from './renderCore.js';
 
-// Re-export a Proxy-free-safe mergeProps in place of the renderer's own so the
-// JSX compiler routes compiled spreads through it — fixes dropped spread props
-// on engines without Proxy (Chrome 38 / webOS 3). See ./mergeProps.ts.
-export { mergeProps } from './mergeProps.js';
-
-type Task = () => void;
-const taskQueue: Task[] = [];
-let tasksEnabled = false;
-
-createRoot(() => {
-  createRenderEffect(() => {
-    // should change whenever a keypress occurs, so we disable the task queue
-    // until the renderer is idle again.
-    activeElement();
-    tasksEnabled = false;
-  });
-});
-
-export function setTasksEnabled(enabled: boolean): void {
-  tasksEnabled = enabled;
-}
-
-export function clearTasks(): void {
-  taskQueue.length = 0;
-}
-
-export function scheduleTask(
-  callback: Task,
-  priority: 'high' | 'low' = 'low',
-): void {
-  if (priority === 'high') {
-    taskQueue.unshift(callback);
-  } else {
-    taskQueue.push(callback);
-  }
-  processTasks();
-}
-
-function processTasks(): void {
-  if (tasksEnabled && taskQueue.length) {
-    setTimeout(() => {
-      const task = taskQueue.shift();
-      if (task) {
-        task();
-        processTasks();
-      }
-    }, Config.taskDelay || 50);
-  }
-}
-
-/**
- * renders an arbitrary custom or native component and passes the other props
- * ```typescript
- * <Dynamic component={multiline() ? 'textarea' : 'input'} value={value()} />
- * ```
- * @description https://www.solidjs.com/docs/latest/api#dynamic
- */
-export function Dynamic<T extends Record<string, any>>(
-  props: T & { component?: Component<T> | undefined | null },
-): JSXElement {
-  const [p, others] = splitProps(props, ['component']);
-
-  const cached = createMemo(() => p.component);
-
-  return createMemo(() => {
-    const component = cached();
-    switch (typeof component) {
-      case 'function':
-        return untrack(() => component(others));
-
-      case 'string': {
-        const el = createElement(component);
-        (el as { componentName?: string }).componentName = component;
-        spread(el, others);
-        return el;
-      }
-
-      default:
-        break;
-    }
-  }) as unknown as JSXElement;
-}
-
-// Dont use JSX as it creates circular dependencies and causes trouble with the playground.
-/**
- * @deprecated Use the lowercase `<view>` intrinsic element instead. The `View` component will be removed in a future release.
- */
-export const View = (props: NodeProps) => {
-  const el = createElement('node');
-  spread(el, props, false);
-  return el as unknown as JSXElement;
-};
-
-/**
- * @deprecated Use the lowercase `<text>` intrinsic element instead. The `Text` component will be removed in a future release.
- */
-export const Text = (props: TextProps) => {
-  const el = createElement('text');
-  spread(el, props, false);
-  return el as unknown as JSXElement;
-};
-
-export function registerDefaultShader(_name: string, _shader: any) {
-  // noop for v2
-  // renderer.stage.shManager.registerShaderType('rounded', Rounded);
+export function createRenderer(
+  rendererOptions?: RendererMainSettings | DomRendererMainSettings,
+  node?: HTMLElement | string,
+) {
+  const renderer = startLightningRenderer(
+    rendererOptions || Config.rendererOptions!,
+    node || 'app',
+  );
+  rootNode.lng = renderer.root!;
+  rootNode.rendered = true;
+  renderer.on('idle', () => setTasksEnabled(true));
+  return { renderer, rootNode, render };
 }

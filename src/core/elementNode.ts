@@ -1,4 +1,5 @@
-import { renderer } from './lightningInit.js';
+import { renderer } from './renderer.js';
+import type { BackendNode } from './renderer.js';
 import {
   type BorderRadius,
   type BorderStyle,
@@ -527,6 +528,7 @@ export interface ElementNode extends RendererNode, FocusNode {
    */
   lng:
     | INode
+    | BackendNode
     | IRendererNode
     | Partial<ElementNode>
     | (IRendererTextNode & { shader?: any });
@@ -1194,8 +1196,9 @@ export class ElementNode {
       return result;
     }
 
-    (this.lng[name as keyof (IRendererNode | INode)] as number | string) =
-      value;
+    ((this.lng as IRendererNode)[name as keyof IRendererNode] as
+      | number
+      | string) = value;
   }
 
   _fireAnimationEvents(

@@ -50,6 +50,13 @@
     "./jsx-runtime": {
       "@solidtv/source": "./jsx-runtime.d.ts",
       "default": "./dist/jsx-runtime.d.ts"
+    },
+    "./roku": {
+      "@solidtv/source": "./src/roku/index.ts",
+      "import": {
+        "types": "./dist/src/roku/index.d.ts",
+        "default": "./dist/src/roku/index.js"
+      }
     }
   },
   "sideEffects": false,
@@ -64,13 +71,14 @@
     "lint:oxlint": "oxlint",
     "lint:fix:oxlint": "oxlint --fix",
     "build": "rm -rf dist && pnpm run tsc && cp jsx-runtime.d.ts dist/",
-    "tsc": "tsc && tsc -p tests/tsconfig.contract.json",
+    "tsc": "tsc && tsc -p tests/tsconfig.contract.json && tsc -p tsconfig.roku.json",
     "watch": "tsc -w",
     "prepare": "husky",
     "prepack": "pnpm run build",
     "release": "release-it",
     "test:browser": "vitest --config=vitest.browser.config.ts",
-    "test:webgl": "vitest run --config=vitest.webgl.config.ts"
+    "test:webgl": "vitest run --config=vitest.webgl.config.ts",
+    "test:roku": "pnpm --dir examples/roku test"
   },
   "keywords": [
     "lightning",
@@ -104,7 +112,11 @@
     "typescript": "^7.0.2",
     "vite": "^8.0.13",
     "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.6",
+    "@roku-sdk/solid": "2.19.1",
+    "@roku-sdk/common": "2.19.1",
+    "@roku-sdk/interfaces": "2.19.1",
+    "solid-js": "1.9.17"
   },
   "lint-staged": {
     "*.ts": [
@@ -116,9 +128,22 @@
   "peerDependencies": {
     "@solidjs/router": "^0.16.1",
     "@solidtv/renderer": "^2.0.7",
-    "solid-js": "*"
+    "solid-js": "*",
+    "@roku-sdk/solid": "2.19.1",
+    "@roku-sdk/common": "2.19.1",
+    "@roku-sdk/interfaces": "2.19.1"
   },
-  "peerDependenciesMeta": {},
+  "peerDependenciesMeta": {
+    "@roku-sdk/solid": {
+      "optional": true
+    },
+    "@roku-sdk/common": {
+      "optional": true
+    },
+    "@roku-sdk/interfaces": {
+      "optional": true
+    }
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/solid-tv/solid.git"

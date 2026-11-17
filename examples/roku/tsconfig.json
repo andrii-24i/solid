@@ -1,0 +1,26 @@
+{
+  "extends": "@roku-sdk/rsg-ts/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "composite": false,
+    "noEmit": true,
+    "allowJs": true,
+    "customConditions": ["@solidtv/source"],
+    "types": [
+      "@roku-sdk/interfaces/global",
+      "@roku-sdk/components/jsx",
+      "vite/client"
+    ],
+    "paths": {
+      "@solidtv/solid": ["../../src/index.ts"],
+      "@solidtv/solid/roku": ["../../src/roku/index.ts"],
+      "@solidtv/solid/primitives": ["../../src/primitives/index.ts"],
+      "@solidtv/solid/jsx-runtime": ["../../jsx-runtime.d.ts"],
+      "@roku-sdk/components": [
+        "./node_modules/@roku-sdk/components/src/key-handler.tsx"
+      ]
+    },
+    "jsxImportSource": "@solidtv/solid"
+  },
+  "include": ["src/**/*", "../../vite-env.d.ts", "../../jsx-runtime.d.ts"]
+}

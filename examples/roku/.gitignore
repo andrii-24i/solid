@@ -1,0 +1,5 @@
+.test/
+dist-build/
+dist-dev/
+src/**/*.xml.d.ts
+*.tsbuildinfo
