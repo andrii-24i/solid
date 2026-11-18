@@ -73,7 +73,10 @@ import {
 //
 // Order matters: layout reads the rendered tree (so destroyed nodes must be
 // gone), and focus reads the laid-out tree.
-let postMutationGeneration = 0;
+//
+// A scheduled run is identified by its ticket. Clearing or replacing the
+// ticket turns callbacks that are already queued, which cannot be cancelled,
+// into no-ops.
 let postMutationTicket: object | undefined;
 let nextActiveElement: ElementNode | null = null;
 let deferredFocusElement: ElementNode | null = null;
@@ -91,8 +94,8 @@ export function enqueueDelete(node: ElementNode, n: number): void {
   }
 }
 
-function resetPostMutation(): void {
-  postMutationGeneration++;
+/** Drops all pending post-mutation work, for a backend that unmounts. */
+export function resetPostMutation(): void {
   postMutationTicket = undefined;
   nextActiveElement = null;
   deferredFocusElement = null;
@@ -103,12 +106,9 @@ function resetPostMutation(): void {
 
 function schedulePostMutation() {
   if (postMutationTicket !== undefined) return;
-  const ticket = {};
-  const generation = postMutationGeneration;
-  postMutationTicket = ticket;
+  const ticket = (postMutationTicket = {});
   const run = () => {
-    if (generation !== postMutationGeneration || postMutationTicket !== ticket)
-      return;
+    if (postMutationTicket !== ticket) return;
     postMutationTicket = undefined;
     runPostMutation();
   };
@@ -174,11 +174,14 @@ function removeItem<T>(arr: T[], item: T): number {
   return index;
 }
 
+// Text-default template, built once on first use.  Config.fontSettings is
+// expected to be set at app startup and not change afterwards.
 let _fontTemplate: Array<[string, any]> | undefined;
 let _fontFamilyIdx = -1;
 let _fontFamilyWithWeight: string | undefined;
 
-function resetFontTemplate(): void {
+/** For a backend that replaces Config.fontSettings: rebuild on next use. */
+export function resetFontTemplate(): void {
   _fontTemplate = undefined;
   _fontFamilyIdx = -1;
   _fontFamilyWithWeight = undefined;
@@ -909,9 +912,6 @@ export interface ElementNode extends RendererNode, FocusNode {
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
 export class ElementNode {
-  static resetPostMutation = resetPostMutation;
-  static resetFontTemplate = resetFontTemplate;
-
   constructor(name: string) {
     this._type = name === 'text' ? NodeType.TextNode : NodeType.Element;
     this.rendered = false;

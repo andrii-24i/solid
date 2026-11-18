@@ -54,10 +54,7 @@ export let renderer: RendererBackend;
 export function installRenderer(backend: RendererBackend) {
   const previous = renderer;
   renderer = backend;
-  let released = false;
   return () => {
-    if (released) return;
-    released = true;
-    if (renderer === backend) renderer = previous;
+    renderer = previous;
   };
 }

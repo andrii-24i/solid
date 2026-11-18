@@ -715,8 +715,6 @@ export const useFocusManager = (
   const ownerContext = (cb: () => void) => {
     runWithOwner(owner, cb);
   };
-  const previousSignalWrapper = _signalWrapper;
-  const previousSetActiveElement = Config.setActiveElement;
   _signalWrapper = ownerContext;
   // Drive the active-element signal inside this owner so its effect subscribers
   // have a parent for cleanup. Consumers replacing the focus manager can wire
@@ -735,30 +733,13 @@ export const useFocusManager = (
     return runWithOwner(owner, dispatchKeyUp);
   };
 
-  let disposed = false;
-  const dispose = () => {
-    if (disposed) return;
-    disposed = true;
-    try {
-      eventTarget.removeEventListener('keydown', keyPressHandler);
-    } finally {
-      try {
-        eventTarget.removeEventListener('keyup', keyUpHandler);
-      } finally {
-        suppressedKeys.clear();
-        heldKeys.clear();
-        _signalWrapper = previousSignalWrapper;
-        Config.setActiveElement = previousSetActiveElement;
-      }
-    }
-  };
-  onCleanup(dispose);
-  try {
-    eventTarget.addEventListener('keydown', keyPressHandler);
-    eventTarget.addEventListener('keyup', keyUpHandler);
-  } catch (error) {
-    dispose();
-    throw error;
-  }
-  return dispose;
+  eventTarget.addEventListener('keydown', keyPressHandler);
+  eventTarget.addEventListener('keyup', keyUpHandler);
+
+  onCleanup(() => {
+    eventTarget.removeEventListener('keydown', keyPressHandler);
+    eventTarget.removeEventListener('keyup', keyUpHandler);
+    suppressedKeys.clear();
+    heldKeys.clear();
+  });
 };

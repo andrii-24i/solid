@@ -19,21 +19,8 @@ const solidRenderer = solidCreateRenderer<SolidNode>(nodeOpts);
 export const rootNode = nodeOpts.createElement('App');
 
 export const render = function (code: () => JSXElement) {
-  let dispose: (() => void) | undefined;
-  try {
-    createRoot((disposeOwner) => {
-      dispose = disposeOwner;
-      solidRenderer.insert(rootNode, code());
-    });
-  } catch (error) {
-    try {
-      dispose?.();
-    } catch (cleanupError) {
-      console.error('SolidTV render cleanup failed', cleanupError);
-    }
-    throw error;
-  }
-  return dispose!;
+  // @ts-expect-error - code is jsx element and not SolidElement yet
+  return solidRenderer.render(code, rootNode);
 };
 
 export const {

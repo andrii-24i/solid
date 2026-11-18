@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ElementNode, enqueueDelete } from '../src/core/elementNode.js';
+import {
+  ElementNode,
+  enqueueDelete,
+  resetFontTemplate,
+  resetPostMutation,
+} from '../src/core/elementNode.js';
 import { installRenderer, renderer } from '../src/core/renderer.js';
 import './setup.js';
 import { Config } from '../src/core/config.js';
@@ -10,7 +15,7 @@ let microtasks: Array<() => void>;
 let releaseRenderer: () => void;
 
 beforeEach(() => {
-  ElementNode.resetPostMutation();
+  resetPostMutation();
   callbacks = [];
   microtasks = [];
   vi.spyOn(globalThis, 'queueMicrotask').mockImplementation((callback) => {
@@ -30,7 +35,7 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
-  ElementNode.resetPostMutation();
+  resetPostMutation();
   releaseRenderer();
   vi.restoreAllMocks();
 });
@@ -47,7 +52,7 @@ describe('post-mutation ownership', () => {
     const disposed = removed();
     const oldCallback = callbacks[0]!;
     const oldMicrotask = microtasks[0]!;
-    ElementNode.resetPostMutation();
+    resetPostMutation();
     expect(disposed._queueDelete).toBeUndefined();
     const next = removed();
     oldCallback();
@@ -94,21 +99,21 @@ describe('post-mutation ownership', () => {
         fontWeight: 500,
         fontSize: 21,
       };
-      ElementNode.resetFontTemplate();
+      resetFontTemplate();
       expect(text()).toMatchObject({ fontFamily: 'Before500', fontSize: 21 });
       Config.fontSettings = {};
-      ElementNode.resetFontTemplate();
+      resetFontTemplate();
       expect(text()).not.toMatchObject({
         fontFamily: 'Before500',
         fontSize: 21,
       });
       Config.fontSettings = { fontFamily: 'After', fontSize: 27 };
-      ElementNode.resetFontTemplate();
+      resetFontTemplate();
       expect(text()).toMatchObject({ fontFamily: 'After', fontSize: 27 });
     } finally {
       for (const node of texts) node.destroy();
       Config.fontSettings = fonts;
-      ElementNode.resetFontTemplate();
+      resetFontTemplate();
     }
   });
 

@@ -1,13 +1,13 @@
 import { createRoot, type JSXElement } from 'solid-js';
 import type { DomNode } from '@roku-sdk/interfaces';
 import { Config } from '../core/config.js';
-import { ElementNode } from '../core/elementNode.js';
+import { resetFontTemplate, resetPostMutation } from '../core/elementNode.js';
 import { setActiveElement } from '../core/activeElement.js';
 import { setFocusPath, useFocusManager } from '../core/focusManager.js';
 import { installRenderer, type RendererBackend } from '../core/renderer.js';
 import {
   clearTasks,
-  render,
+  insert,
   rootNode,
   setTasksEnabled,
 } from '../renderCore.js';
@@ -44,7 +44,7 @@ export function mountRoku(
   let disposed = false;
   let idleQueued = false;
   const resetPending = () => {
-    ElementNode.resetPostMutation();
+    resetPostMutation();
     setTasksEnabled(false);
     clearTasks();
   };
@@ -88,10 +88,10 @@ export function mountRoku(
     releases.push(() => {
       Config.fontSettings = previousFontSettings;
       Config.setActiveElement = previousSetActiveElement;
-      ElementNode.resetFontTemplate();
+      resetFontTemplate();
     });
     Config.fontSettings = {};
-    ElementNode.resetFontTemplate();
+    resetFontTemplate();
     resetPending();
 
     const group = createNative('group');
@@ -167,10 +167,15 @@ export function mountRoku(
     rootNode.children = [];
     rootNode._states = undefined;
     releases.push(options.keys.onAfterDispatch(scheduleIdle));
-    createRoot((disposeOwner) => {
-      releases.push(disposeOwner);
-      releases.push(useFocusManager({ Play: 'MediaPlayPause' }, options.keys));
-      releases.push(render(screen));
+    // Separate roots: a screen cleanup that throws must not skip the focus
+    // manager's, and a screen that throws while mounting is still disposed.
+    createRoot((dispose) => {
+      releases.push(dispose);
+      useFocusManager({ Play: 'MediaPlayPause' }, options.keys);
+    });
+    createRoot((dispose) => {
+      releases.push(dispose);
+      insert(rootNode, screen());
     });
     scheduleIdle();
     return cleanup;
