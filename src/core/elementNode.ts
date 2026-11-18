@@ -1,4 +1,5 @@
-import { renderer } from './lightningInit.js';
+import { renderer } from './renderer.js';
+import type { BackendNode } from './renderer.js';
 import {
   type BorderRadius,
   type BorderStyle,
@@ -72,7 +73,11 @@ import {
 //
 // Order matters: layout reads the rendered tree (so destroyed nodes must be
 // gone), and focus reads the laid-out tree.
-let postMutationQueued = false;
+//
+// A scheduled run is identified by its ticket. Clearing or replacing the
+// ticket turns callbacks that are already queued, which cannot be cancelled,
+// into no-ops.
+let postMutationTicket: object | undefined;
 let nextActiveElement: ElementNode | null = null;
 let deferredFocusElement: ElementNode | null = null;
 const layoutQueue = new Set<ElementNode>();
@@ -89,18 +94,29 @@ export function enqueueDelete(node: ElementNode, n: number): void {
   }
 }
 
+/** Drops all pending post-mutation work, for a backend that unmounts. */
+export function resetPostMutation(): void {
+  postMutationTicket = undefined;
+  nextActiveElement = null;
+  deferredFocusElement = null;
+  layoutQueue.clear();
+  for (const node of elementDeleteQueue) node._queueDelete = undefined;
+  elementDeleteQueue.length = 0;
+}
+
 function schedulePostMutation() {
-  if (postMutationQueued) return;
-  postMutationQueued = true;
-  if ('reprocessUpdates' in renderer.stage && renderer.stage.reprocessUpdates) {
-    renderer.stage.reprocessUpdates(runPostMutation);
-  }
-  queueMicrotask(runPostMutation);
+  if (postMutationTicket !== undefined) return;
+  const ticket = (postMutationTicket = {});
+  const run = () => {
+    if (postMutationTicket !== ticket) return;
+    postMutationTicket = undefined;
+    runPostMutation();
+  };
+  if (renderer.stage.reprocessUpdates) renderer.stage.reprocessUpdates(run);
+  queueMicrotask(run);
 }
 
 function runPostMutation() {
-  postMutationQueued = false;
-
   // Phase 1: delete-flush
   if (elementDeleteQueue.length > 0) {
     for (const el of elementDeleteQueue) {
@@ -163,6 +179,13 @@ function removeItem<T>(arr: T[], item: T): number {
 let _fontTemplate: Array<[string, any]> | undefined;
 let _fontFamilyIdx = -1;
 let _fontFamilyWithWeight: string | undefined;
+
+/** For a backend that replaces Config.fontSettings: rebuild on next use. */
+export function resetFontTemplate(): void {
+  _fontTemplate = undefined;
+  _fontFamilyIdx = -1;
+  _fontFamilyWithWeight = undefined;
+}
 
 function buildFontTemplate() {
   const tpl: Array<[string, any]> = [];
@@ -527,6 +550,7 @@ export interface ElementNode extends RendererNode, FocusNode {
    */
   lng:
     | INode
+    | BackendNode
     | IRendererNode
     | Partial<ElementNode>
     | (IRendererTextNode & { shader?: any });
@@ -1194,8 +1218,9 @@ export class ElementNode {
       return result;
     }
 
-    (this.lng[name as keyof (IRendererNode | INode)] as number | string) =
-      value;
+    ((this.lng as IRendererNode)[name as keyof IRendererNode] as
+      | number
+      | string) = value;
   }
 
   _fireAnimationEvents(

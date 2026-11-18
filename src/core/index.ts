@@ -1,4 +1,11 @@
-export * from './elementNode.js';
+export {
+  ElementNode,
+  enqueueDelete,
+  convertToShader,
+  createRawShaderAccessor,
+  shaderAccessor,
+  type RendererNode,
+} from './elementNode.js';
 export * from './lightningInit.js';
 export * from './nodeTypes.js';
 export * from './utils.js';

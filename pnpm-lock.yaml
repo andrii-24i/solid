@@ -26,13 +26,19 @@ importers:
       '@solidtv/renderer':
         specifier: ^2.0.7
         version: 2.0.7
-      solid-js:
-        specifier: '*'
-        version: 1.9.3
     devDependencies:
       '@lightningtv/vite-hex-transform':
         specifier: ^1.1.0
         version: 1.1.0(@types/node@22.14.1)(lightningcss@1.32.0)(terser@5.51.2)
+      '@roku-sdk/common':
+        specifier: 2.19.1
+        version: 2.19.1
+      '@roku-sdk/interfaces':
+        specifier: 2.19.1
+        version: 2.19.1
+      '@roku-sdk/solid':
+        specifier: 2.19.1
+        version: 2.19.1
       '@solid-devtools/debugger':
         specifier: ^0.28.1
         version: 0.28.1(solid-js@1.9.3)
@@ -66,6 +72,9 @@ importers:
       release-it:
         specifier: ^20.0.1
         version: 20.0.1(@types/node@22.14.1)
+      solid-js:
+        specifier: 1.9.3
+        version: 1.9.3
       terser:
         specifier: ^5.51.2
         version: 5.51.2
@@ -893,6 +902,18 @@ packages:
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
+
+  '@roku-sdk/common@2.19.1':
+    resolution: {integrity: sha512-n49G6ZaOGzq6qhnpuX1byHiky3Co0tS7vxeOkQjNgprOt955/tFOsPM+ooFzn1/HiRS85akWep49t/spQR9e/g==}
+    engines: {node: '>=24.0.0', npm: '>=8.5.0'}
+
+  '@roku-sdk/interfaces@2.19.1':
+    resolution: {integrity: sha512-o05JUjAN2GzMeV9UJSJ9/XCq75OkLERA5V92EOpcGv0t2Dye0umsmIKMlYSCt0xPmu7lNQ5UQEIPQG9pU250Gg==}
+    engines: {node: '>=24.0.0', npm: '>=8.5.0'}
+
+  '@roku-sdk/solid@2.19.1':
+    resolution: {integrity: sha512-r9sxCD1C9ON80bEg3oLKhyqd/Co9E5Uavqw6LCIqtJaUytziAba0UPXCFcw9McQDYIixcZoqJVLx1MwXHelHUw==}
+    engines: {node: '>=24.0.0', npm: '>=8.5.0'}
 
   '@rolldown/binding-android-arm64@1.0.1':
     resolution: {integrity: sha512-fJI3I0r3C3Oj/zdBCpaCmBRZYf07xpaq4yCfDDoSFm+beWNzbIl26puW8RraUdugoJw/95zerNOn6jasAhzSmg==}
@@ -2290,14 +2311,14 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  seroval-plugins@1.1.1:
-    resolution: {integrity: sha512-qNSy1+nUj7hsCOon7AO4wdAIo9P0jrzAMp18XhiOzA6/uO5TKtP7ScozVJ8T293oRIvi5wyCHSM4TrJo/c/GJA==}
+  seroval-plugins@1.6.12:
+    resolution: {integrity: sha512-+reiwp/lYxiyctSrdvX7OQ1YLrcbWYgBiZrhSFL+V43b0/DGRLNVSDyZINbQe+tWplPOI2fw2dPrdv6hcc09kQ==}
     engines: {node: '>=10'}
     peerDependencies:
       seroval: ^1.0
 
-  seroval@1.1.1:
-    resolution: {integrity: sha512-rqEO6FZk8mv7Hyv4UCj3FD3b6Waqft605TLfsCe/BiaylRpyyMC0b+uA5TJKawX3KzMrdi3wsLbCaLplrQmBvQ==}
+  seroval@1.6.12:
+    resolution: {integrity: sha512-CqbIVfk/7GL3ITwZI55lcPbpQbjHZ2DD5cUj4iH7E9YsCfHNJV1mx7yNp86Z84w5IpmkZZS/2s5vPOWmVWSdQg==}
     engines: {node: '>=10'}
 
   siginfo@2.0.0:
@@ -2330,6 +2351,9 @@ packages:
   socks@2.8.3:
     resolution: {integrity: sha512-l5x7VUUWbjVFbafGLxPWkYsHIhEvmF85tbIeFZWc8ZPtoMyybuEhL7Jye/ooC4/d48FgOjSJXgsF/AJPYCW8Zw==}
     engines: {node: '>= 10.0.0', npm: '>= 3.0.0'}
+
+  solid-js@1.9.17:
+    resolution: {integrity: sha512-4GAmLOWPfNV8H9Jfn2LSFTpNEG6jiOKPiwd5lnLGQtehHaX6l3TOLzJqQ7mqwB/3k1Yy3zyumFVopmc/tm34ow==}
 
   solid-js@1.9.3:
     resolution: {integrity: sha512-5ba3taPoZGt9GY3YlsCB24kCg0Lv/rie/HTD4kG6h4daZZz7+yK02xn8Vx8dLYBc9i6Ps5JwAbEiqjmKaLB3Ag==}
@@ -3304,6 +3328,18 @@ snapshots:
   '@phun-ky/typeof@2.0.3': {}
 
   '@polka/url@1.0.0-next.29': {}
+
+  '@roku-sdk/common@2.19.1':
+    dependencies:
+      '@roku-sdk/interfaces': 2.19.1
+
+  '@roku-sdk/interfaces@2.19.1': {}
+
+  '@roku-sdk/solid@2.19.1':
+    dependencies:
+      '@roku-sdk/common': 2.19.1
+      '@roku-sdk/interfaces': 2.19.1
+      solid-js: 1.9.17
 
   '@rolldown/binding-android-arm64@1.0.1':
     optional: true
@@ -4633,11 +4669,11 @@ snapshots:
 
   semver@7.7.4: {}
 
-  seroval-plugins@1.1.1(seroval@1.1.1):
+  seroval-plugins@1.6.12(seroval@1.6.12):
     dependencies:
-      seroval: 1.1.1
+      seroval: 1.6.12
 
-  seroval@1.1.1: {}
+  seroval@1.6.12: {}
 
   siginfo@2.0.0: {}
 
@@ -4674,11 +4710,17 @@ snapshots:
       ip-address: 9.0.5
       smart-buffer: 4.2.0
 
+  solid-js@1.9.17:
+    dependencies:
+      csstype: 3.1.3
+      seroval: 1.6.12
+      seroval-plugins: 1.6.12(seroval@1.6.12)
+
   solid-js@1.9.3:
     dependencies:
       csstype: 3.1.3
-      seroval: 1.1.1
-      seroval-plugins: 1.1.1(seroval@1.1.1)
+      seroval: 1.6.12
+      seroval-plugins: 1.6.12(seroval@1.6.12)
 
   solid-refresh@0.6.3(solid-js@1.9.3):
     dependencies:

@@ -23,6 +23,7 @@ export default defineConfig(() => ({
       ...configDefaults.exclude,
       'tests/webgl/**',
       'bench/**',
+      'examples/roku/**',
       // .claude/** holds nested git worktrees with their own copies of tests.
       '.claude/**',
     ],

@@ -662,11 +662,11 @@ export interface KeyEventLike {
 export interface KeyEventTarget {
   addEventListener(
     type: 'keydown' | 'keyup',
-    listener: (event: KeyEventLike) => void,
+    listener: (event: KeyEventLike) => boolean | void,
   ): void;
   removeEventListener(
     type: 'keydown' | 'keyup',
-    listener: (event: KeyEventLike) => void,
+    listener: (event: KeyEventLike) => boolean | void,
   ): void;
 }
 
@@ -677,26 +677,20 @@ let _dispatchEvent: KeyEventLike | undefined;
 
 // Handlers are typed as KeyboardEvent throughout; on a host that raises its
 // own objects they see those, which carry the fields read here.
-const dispatchKeyDown = (): void => {
+const dispatchKeyDown = (): boolean => {
   const event = _dispatchEvent!;
   _dispatchEvent = undefined;
-  if (
-    handleKeyEvents(event as KeyboardEvent, undefined) &&
-    Config.preventDefaultOnHandledKeys
-  ) {
-    event.preventDefault?.();
-  }
+  const handled = handleKeyEvents(event as KeyboardEvent, undefined);
+  if (handled && Config.preventDefaultOnHandledKeys) event.preventDefault?.();
+  return handled;
 };
 
-const dispatchKeyUp = (): void => {
+const dispatchKeyUp = (): boolean => {
   const event = _dispatchEvent!;
   _dispatchEvent = undefined;
-  if (
-    handleKeyEvents(undefined, event as KeyboardEvent) &&
-    Config.preventDefaultOnHandledKeys
-  ) {
-    event.preventDefault?.();
-  }
+  const handled = handleKeyEvents(undefined, event as KeyboardEvent);
+  if (handled && Config.preventDefaultOnHandledKeys) event.preventDefault?.();
+  return handled;
 };
 
 export const useFocusManager = (
@@ -732,11 +726,11 @@ export const useFocusManager = (
   // with no closure per event.
   const keyPressHandler = (event: KeyEventLike) => {
     _dispatchEvent = event;
-    runWithOwner(owner, dispatchKeyDown);
+    return runWithOwner(owner, dispatchKeyDown);
   };
   const keyUpHandler = (event: KeyEventLike) => {
     _dispatchEvent = event;
-    runWithOwner(owner, dispatchKeyUp);
+    return runWithOwner(owner, dispatchKeyUp);
   };
 
   eventTarget.addEventListener('keydown', keyPressHandler);

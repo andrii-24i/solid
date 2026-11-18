@@ -393,6 +393,7 @@ v.describe('package.json exports', () => {
       './shaders',
       './focusManager',
       './jsx-runtime',
+      './roku',
     ]);
   });
 
