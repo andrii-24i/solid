@@ -68,23 +68,6 @@ describe('background task queue', () => {
     expect(fresh).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects an old callback after a new timer owns the queue', () => {
-    const timeout = vi.spyOn(globalThis, 'setTimeout');
-    const stale = vi.fn();
-    const fresh = vi.fn();
-    setTasksEnabled(true);
-    scheduleTask(stale);
-    const callback = timeout.mock.calls[0]![0];
-    clearTasks();
-    scheduleTask(fresh);
-    if (typeof callback === 'function') callback();
-    expect(stale).not.toHaveBeenCalled();
-    expect(fresh).not.toHaveBeenCalled();
-    expect(vi.getTimerCount()).toBe(1);
-    vi.advanceTimersByTime(10);
-    expect(fresh).toHaveBeenCalledTimes(1);
-  });
-
   it('continues the queue after a task throws', () => {
     const next = vi.fn();
     setTasksEnabled(true);

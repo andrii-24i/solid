@@ -44,7 +44,6 @@ export { mergeProps } from './mergeProps.js';
 type Task = () => void;
 const taskQueue: Task[] = [];
 let tasksEnabled = false;
-let taskGeneration = 0;
 let taskTimer: ReturnType<typeof setTimeout> | undefined;
 
 createRoot(() => {
@@ -80,7 +79,6 @@ export function scheduleTask(
 }
 
 function cancelTaskTimer(): void {
-  taskGeneration++;
   if (taskTimer !== undefined) clearTimeout(taskTimer);
   taskTimer = undefined;
 }
@@ -88,11 +86,8 @@ function cancelTaskTimer(): void {
 function processTasks(): void {
   if (!tasksEnabled || taskQueue.length === 0 || taskTimer !== undefined)
     return;
-  const generation = taskGeneration;
   taskTimer = setTimeout(() => {
-    if (generation !== taskGeneration) return;
     taskTimer = undefined;
-    if (!tasksEnabled) return;
     const task = taskQueue.shift();
     try {
       task?.();
