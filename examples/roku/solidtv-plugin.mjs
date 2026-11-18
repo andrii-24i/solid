@@ -9,7 +9,7 @@ import classStaticBlock from '@babel/plugin-transform-class-static-block';
 import classes from '@babel/plugin-transform-classes';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
-const require = createRequire(new URL('../../package.json', import.meta.url));
+const require = createRequire(new URL('./package.json', import.meta.url));
 
 export function solidtvPlugin({ native = false } = {}) {
   return {

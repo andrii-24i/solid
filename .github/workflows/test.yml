@@ -33,3 +33,24 @@ jobs:
         # Will run the step even if build step failed, to give feedback
         if: success() || failure()
         run: pnpm lint
+
+  roku:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            examples/roku/pnpm-lock.yaml
+      - name: Install core dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Roku example dependencies
+        run: pnpm --dir examples/roku install --frozen-lockfile
+      - name: Test Roku with mocked SceneGraph APIs
+        run: pnpm test:roku
+      - name: Build and validate production Roku package
+        run: pnpm --dir examples/roku build

@@ -18,7 +18,9 @@
       "@solidtv/solid/jsx-runtime": ["../../jsx-runtime.d.ts"],
       "@roku-sdk/components": [
         "./node_modules/@roku-sdk/components/src/key-handler.tsx"
-      ]
+      ],
+      "solid-js": ["./node_modules/solid-js"],
+      "solid-js/*": ["./node_modules/solid-js/*"]
     },
     "jsxImportSource": "@solidtv/solid"
   },

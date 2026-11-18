@@ -116,7 +116,7 @@
     "@roku-sdk/solid": "2.19.1",
     "@roku-sdk/common": "2.19.1",
     "@roku-sdk/interfaces": "2.19.1",
-    "solid-js": "1.9.17"
+    "solid-js": "1.9.3"
   },
   "lint-staged": {
     "*.ts": [
@@ -129,9 +129,9 @@
     "@solidjs/router": "^0.16.1",
     "@solidtv/renderer": "^2.0.7",
     "solid-js": "*",
-    "@roku-sdk/solid": "2.19.1",
-    "@roku-sdk/common": "2.19.1",
-    "@roku-sdk/interfaces": "2.19.1"
+    "@roku-sdk/solid": "^2.19.1",
+    "@roku-sdk/common": "^2.19.1",
+    "@roku-sdk/interfaces": "^2.19.1"
   },
   "peerDependenciesMeta": {
     "@roku-sdk/solid": {

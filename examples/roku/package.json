@@ -4,9 +4,10 @@
   "type": "module",
   "scripts": {
     "test": "node test/run.mjs",
-    "build": "rk build && node test/check-package.mjs",
+    "build": "rk build && pnpm check:package",
     "dev:package": "rk dev --no-sideload --no-watch",
-    "archive": "rk build --archive && node test/check-package.mjs"
+    "archive": "rk build --archive && pnpm check:package",
+    "check:package": "node test/check-package.mjs && node test/package-inputs.test.mjs && node test/bootstrap-package.mjs"
   },
   "dependencies": {
     "@roku-sdk/common": "2.19.1",

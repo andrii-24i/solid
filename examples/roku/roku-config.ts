@@ -15,10 +15,10 @@ export default {
   },
   pipeline: {
     build: {
-      plugins: [{ position: { before: 'solid' }, plugin: solidtvPlugin() }],
+      plugins: [{ position: 'first', plugin: solidtvPlugin() }],
     },
     startDev: {
-      plugins: [{ position: { before: 'solid' }, plugin: solidtvPlugin() }],
+      plugins: [{ position: 'first', plugin: solidtvPlugin() }],
     },
   },
 } satisfies RokuConfig;
