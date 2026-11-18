@@ -69,12 +69,11 @@ const defaults = {
   fontWeight: undefined,
 } satisfies RokuProps;
 
+type Axis = 'x' | 'y';
 type NativeUpdate =
-  | 'translationX'
-  | 'translationY'
+  | 'translation'
   | 'opacity'
-  | 'scaleX'
-  | 'scaleY'
+  | 'scale'
   | 'rotation'
   | 'center'
   | 'clipping'
@@ -87,17 +86,17 @@ type NativeUpdate =
   | 'textAlign';
 
 const updates: Partial<Record<keyof RokuProps, readonly NativeUpdate[]>> = {
-  x: ['translationX'],
-  y: ['translationY'],
+  x: ['translation'],
+  y: ['translation'],
   alpha: ['opacity'],
-  scale: ['scaleX', 'scaleY'],
-  scaleX: ['scaleX'],
-  scaleY: ['scaleY'],
-  mount: ['translationX', 'translationY'],
-  mountX: ['translationX'],
-  mountY: ['translationY'],
-  w: ['translationX', 'width', 'center', 'clipping'],
-  h: ['translationY', 'height', 'center', 'clipping'],
+  scale: ['scale'],
+  scaleX: ['scale'],
+  scaleY: ['scale'],
+  mount: ['translation'],
+  mountX: ['translation'],
+  mountY: ['translation'],
+  w: ['translation', 'width', 'center', 'clipping'],
+  h: ['translation', 'height', 'center', 'clipping'],
   rotation: ['rotation'],
   pivot: ['center'],
   pivotX: ['center'],
@@ -123,14 +122,35 @@ const channels: Partial<Record<keyof RokuProps, readonly AnimationChannel[]>> =
     w: ['x'],
     h: ['y'],
   };
+// Props that change one axis of a vector field. Once the axes are split, their
+// update must leave the other axis's group alone: a Tween may be driving it.
+const axes: Partial<Record<keyof RokuProps, Axis>> = {
+  x: 'x',
+  scaleX: 'x',
+  mountX: 'x',
+  w: 'x',
+  y: 'y',
+  scaleY: 'y',
+  mountY: 'y',
+  h: 'y',
+};
+const channelUpdates: Record<AnimationChannel, readonly [NativeUpdate, Axis?]> =
+  {
+    x: ['translation', 'x'],
+    y: ['translation', 'y'],
+    alpha: ['opacity'],
+    scaleX: ['scale', 'x'],
+    scaleY: ['scale', 'y'],
+  };
 
 export class RokuNode extends EventEmitter implements RokuProps {
   readonly native: DomNode;
-  readonly childHost: DomNode;
   readonly props: RokuProps;
-  private readonly vertical: DomNode;
-  private readonly horizontalScale: DomNode;
-  private readonly verticalScale: DomNode;
+  // Set by splitAxes(). Until then `native` carries every field and hosts the
+  // content and children. Afterwards `native` keeps x, opacity and id; `middle`
+  // takes y, rotation and scaleX; `inner` takes scaleY, clipping and the
+  // content and children.
+  private split?: { middle: DomNode; inner: DomNode };
   private content?: DomNode;
   private contentKind?: 'label' | 'poster' | 'rectangle';
   private destroyed = false;
@@ -160,20 +180,10 @@ export class RokuNode extends EventEmitter implements RokuProps {
     };
     this.validate(props);
     this.native = host ?? createNative('group');
-    this.vertical = createNative('group');
-    this.horizontalScale = createNative('group');
-    this.verticalScale = createNative('group');
-    this.childHost = createNative('group');
-    insertNative(this.native, this.vertical);
-    insertNative(this.vertical, this.horizontalScale);
-    insertNative(this.horizontalScale, this.verticalScale);
-    insertNative(this.verticalScale, this.childHost);
     for (const update of [
-      'translationX',
-      'translationY',
+      'translation',
       'opacity',
-      'scaleX',
-      'scaleY',
+      'scale',
       'rotation',
       'center',
       'clipping',
@@ -195,6 +205,10 @@ export class RokuNode extends EventEmitter implements RokuProps {
       );
     if (this.kind === 'text' && (!this.props.w || !this.props.h))
       throw new Error('Roku text requires explicit w and h.');
+  }
+
+  get childHost(): DomNode {
+    return this.split?.inner ?? this.native;
   }
 
   get absX(): number {
@@ -281,14 +295,14 @@ export class RokuNode extends EventEmitter implements RokuProps {
       this.props.pivotX = this.props.pivotY = value;
     for (const update of updates[key] ?? []) {
       if (
-        (key === 'w' && update === 'translationX' && this.mountX === 0) ||
-        (key === 'h' && update === 'translationY' && this.mountY === 0) ||
+        (key === 'w' && update === 'translation' && this.mountX === 0) ||
+        (key === 'h' && update === 'translation' && this.mountY === 0) ||
         ((key === 'w' || key === 'h') &&
           update === 'clipping' &&
           !this.clipping)
       )
         continue;
-      this.updateNative(update);
+      this.updateNative(update, axes[key]);
     }
   }
 
@@ -308,7 +322,42 @@ export class RokuNode extends EventEmitter implements RokuProps {
         this.animations.delete(channel);
   }
 
+  // An SDK Tween on one axis writes the whole vector and holds the other axis
+  // at a constant, so two Tweens cannot share a field. Before the first
+  // transform Tween, give each axis its own group. Opacity Tweens stay on
+  // `native`, so no running Tween targets a field that moves here.
+  private splitAxes() {
+    if (this.split) return this.split;
+    const middle = createNative('group');
+    const inner = createNative('group');
+    insertNative(middle, inner);
+    const hosted = new Set<DomNode | undefined>([this.content]);
+    for (const child of this.children) hosted.add(child.native);
+    for (const child of [...(this.native.c ?? [])]) {
+      if (!hosted.has(child)) continue;
+      removeNative(this.native, child);
+      insertNative(inner, child);
+    }
+    insertNative(this.native, middle);
+    this.split = { middle, inner };
+    setNative(this.native, 'scale', [1, 1]);
+    setNative(this.native, 'rotation', 0);
+    setNative(this.native, 'clippingRect', [0, 0, 0, 0]);
+    for (const update of [
+      'translation',
+      'scale',
+      'rotation',
+      'center',
+      'clipping',
+    ] satisfies NativeUpdate[])
+      this.updateNative(update);
+    return this.split;
+  }
+
   animationTarget(channel: AnimationChannel): NativeAnimationTarget {
+    if (channel === 'alpha')
+      return { node: this.native, field: 'opacity', axis: 'all', offset: 0 };
+    const { middle, inner } = this.splitAxes();
     switch (channel) {
       case 'x':
         return {
@@ -320,7 +369,7 @@ export class RokuNode extends EventEmitter implements RokuProps {
         };
       case 'y':
         return {
-          node: this.vertical,
+          node: middle,
           field: 'translation',
           axis: 'y',
           preserveOther: 0,
@@ -328,7 +377,7 @@ export class RokuNode extends EventEmitter implements RokuProps {
         };
       case 'scaleX':
         return {
-          node: this.horizontalScale,
+          node: middle,
           field: 'scale',
           axis: 'x',
           preserveOther: 1,
@@ -336,14 +385,12 @@ export class RokuNode extends EventEmitter implements RokuProps {
         };
       case 'scaleY':
         return {
-          node: this.verticalScale,
+          node: inner,
           field: 'scale',
           axis: 'y',
           preserveOther: 1,
           offset: 0,
         };
-      case 'alpha':
-        return { node: this.native, field: 'opacity', axis: 'all', offset: 0 };
     }
   }
 
@@ -354,43 +401,38 @@ export class RokuNode extends EventEmitter implements RokuProps {
       this.scaleX === this.scaleY
     )
       this.props.scale = value;
-    const update: Record<AnimationChannel, NativeUpdate> = {
-      x: 'translationX',
-      y: 'translationY',
-      alpha: 'opacity',
-      scaleX: 'scaleX',
-      scaleY: 'scaleY',
-    };
-    this.updateNative(update[channel]);
+    this.updateNative(...channelUpdates[channel]);
   }
 
-  private updateNative(update: NativeUpdate) {
+  private updateNative(update: NativeUpdate, axis?: Axis) {
     const p = this.props;
+    const split = this.split;
     switch (update) {
-      case 'translationX':
-        setNative(this.native, 'translation', [p.x - p.mountX * p.w, 0]);
+      case 'translation': {
+        const x = p.x - p.mountX * p.w;
+        const y = p.y - p.mountY * p.h;
+        if (!split) setNative(this.native, 'translation', [x, y]);
+        else {
+          if (axis !== 'y') setNative(this.native, 'translation', [x, 0]);
+          if (axis !== 'x') setNative(split.middle, 'translation', [0, y]);
+        }
         return;
-      case 'translationY':
-        setNative(this.vertical, 'translation', [0, p.y - p.mountY * p.h]);
-        return;
+      }
       case 'opacity':
         setNative(this.native, 'opacity', p.alpha);
         return;
-      case 'scaleX':
-        setNative(this.horizontalScale, 'scale', [p.scaleX, 1]);
-        return;
-      case 'scaleY':
-        setNative(this.verticalScale, 'scale', [1, p.scaleY]);
+      case 'scale':
+        if (!split) setNative(this.native, 'scale', [p.scaleX, p.scaleY]);
+        else {
+          if (axis !== 'y') setNative(split.middle, 'scale', [p.scaleX, 1]);
+          if (axis !== 'x') setNative(split.inner, 'scale', [1, p.scaleY]);
+        }
         return;
       case 'rotation':
-        setNative(this.vertical, 'rotation', -p.rotation);
+        setNative(split?.middle ?? this.native, 'rotation', -p.rotation);
         return;
       case 'center':
-        for (const group of [
-          this.vertical,
-          this.horizontalScale,
-          this.verticalScale,
-        ])
+        for (const group of split ? [split.middle, split.inner] : [this.native])
           setNative(group, 'scaleRotateCenter', [
             p.pivotX * p.w,
             p.pivotY * p.h,
@@ -479,7 +521,8 @@ export class RokuNode extends EventEmitter implements RokuProps {
     for (const animation of this.animations.values()) animation.stop();
     for (const child of this.children) child.destroy();
     this.parent = null;
-    removeNative(this.native, this.vertical);
+    const hosted = this.split?.middle ?? this.content;
+    if (hosted) removeNative(this.native, hosted);
     this.removeAllListeners();
     this.destroyed = true;
   }

@@ -7,6 +7,7 @@ import type { DomNode } from '@roku-sdk/interfaces';
 import { RokuNode } from '../../../src/roku/node';
 import {
   childHost,
+  contentPath,
   localTransform,
   localTranslation,
   logicalChildren,
@@ -146,6 +147,48 @@ export async function verifyAnimation() {
     scheduled.stop();
     await scheduledStopped;
     assert.equal(resolved, true);
+
+    assert.deepEqual(
+      [contentPath(native).length, contentPath(textNative).length],
+      [2, 2],
+      'a view is one native group plus its content until a transform animates',
+    );
+    const compact = localTransform(native);
+    const compactContent = visualContent(native);
+    const fading = view.animate({ alpha: 0.2 }, { duration: 250 }).start();
+    view.animate({ y: 0 }, { duration: 250 }).start().stop();
+    await tree.transaction();
+    assert.equal(
+      contentPath(native).length,
+      4,
+      'the first transform animation adds the two axis groups',
+    );
+    localTransform(native).forEach((value, index) =>
+      assert(
+        Math.abs(value - compact[index]) < 1e-9,
+        'splitting the axes preserves the composed transform',
+      ),
+    );
+    assert.equal(visualContent(native).r, compactContent.r);
+    assert.deepEqual(
+      logicalChildren(native).map((child) => child.r),
+      [textNative.r],
+      'content and children move to the inner group in order',
+    );
+    assert.deepEqual(childHost(native).props.clippingRect, [0, 0, 240, 360]);
+    assert.deepEqual(native.props.clippingRect, [0, 0, 0, 0]);
+    assert(
+      fading.state === 'running' &&
+        native.children.includes(tween('opacity', 'all')),
+      'a running opacity Tween stays on the outer group through the split',
+    );
+    fading.stop();
+    await tree.transaction();
+    assert.equal(
+      contentPath(textNative).length,
+      2,
+      'a child that has not animated stays compact',
+    );
 
     for (const reverseStart of [false, true]) {
       for (const reverseComplete of [false, true]) {

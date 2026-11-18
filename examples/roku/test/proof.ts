@@ -4,6 +4,7 @@ import { verifyLifecycle } from './lifecycle';
 import { verifyKeys } from './keys';
 import { verifyTasks } from './tasks';
 import {
+  contentPath,
   localTranslation,
   logicalChildren,
   tweenCompletionValue,
@@ -40,6 +41,11 @@ const cards = () =>
   );
 const initial = cards();
 assert.equal(initial.length, 6);
+assert.deepEqual(
+  initial.map((card) => contentPath(card).length),
+  [4, 2, 2, 2, 2, 2],
+  'only the focused card, which animated its scale, has axis groups',
+);
 assert.deepEqual(initial.map(localTranslation), [
   [0, 0],
   [270, 0],
