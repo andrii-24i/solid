@@ -24,7 +24,7 @@ import * as focusManager from '@solidtv/solid/focusManager';
 const names = (mod: object) => Object.keys(mod).sort();
 
 v.describe('Exports: runtime export names of every entry point', () => {
-  v.test('@solidtv/solid (src/index.ts): 99 names', () => {
+  v.test('@solidtv/solid (src/index.ts): 97 names', () => {
     v.expect(names(main)).toEqual([
       'Config',
       'DOMNode',
@@ -109,8 +109,6 @@ v.describe('Exports: runtime export names of every entry point', () => {
       'registerDefaultShaderShadow',
       'registerDefaultShaders',
       'renderer',
-      'resetFontTemplate',
-      'resetPostMutation',
       'rootNode',
       'scheduleTask',
       'setActiveElement',
