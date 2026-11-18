@@ -1,13 +1,25 @@
-import { verifySdkMoves } from './sdk-moves';
+import { verifyMockMoves } from './mock-moves';
 import { verifyAnimation } from './animation';
+import { verifyLifecycle } from './lifecycle';
+import { verifyKeys } from './keys';
+import { verifyTasks } from './tasks';
+import {
+  localTranslation,
+  logicalChildren,
+  tweenCompletionValue,
+  visualContent,
+} from './native-tree';
 import assert from 'node:assert/strict';
 import { render } from '@roku-sdk/testing-library';
 import { RokuProof } from '../src/native';
 
 assert.equal(typeof document, 'undefined');
 assert.equal(typeof window, 'undefined');
-await verifySdkMoves();
+await verifyMockMoves();
 await verifyAnimation();
+await verifyLifecycle();
+verifyKeys();
+await verifyTasks();
 const proof = await render(RokuProof);
 const byId = (id: string) => proof.getByProp('id', id);
 const queryId = (id: string) => proof.queryByProp('id', id);
@@ -18,24 +30,24 @@ const settle = async (tree = proof) => {
   }
 };
 await settle();
-assert.equal(byId('status').children[0].props.text, 'Updates 0 · Releases 0');
+assert.equal(
+  visualContent(byId('status')).props.text,
+  'Updates 0 · Releases 0',
+);
 const cards = () =>
-  byId('posters').children.filter((node) =>
+  logicalChildren(byId('posters')).filter((node) =>
     String(node.props.id).startsWith('poster-'),
   );
 const initial = cards();
 assert.equal(initial.length, 6);
-assert.deepEqual(
-  initial.map((node) => node.props.translation),
-  [
-    [0, 0],
-    [270, 0],
-    [540, 0],
-    [810, 0],
-    [1080, 0],
-    [1350, 0],
-  ],
-);
+assert.deepEqual(initial.map(localTranslation), [
+  [0, 0],
+  [270, 0],
+  [540, 0],
+  [810, 0],
+  [1080, 0],
+  [1350, 0],
+]);
 assert.equal(proof.queryAllByTag('poster').length, 6);
 assert.equal(
   proof.queryAllByTag('poster')[0].props.uri,
@@ -48,6 +60,9 @@ const viewport = proof
 assert(viewport);
 assert.deepEqual(viewport.props.clippingRect, [0, 0, 1100, 450]);
 const keys = proof.queryAllByTag('key-handler')[0];
+assert.equal(keys.props.bubbleUnhandledKeys, true);
+assert.notEqual(keys.props.handleAllKeys, true);
+assert(Array.isArray(keys.props.keys) && !keys.props.keys.includes('back'));
 const key = async (key: string, press = true) => {
   await proof.fireEvent(keys, 'onKeyEvent', { key, press });
   await settle();
@@ -62,26 +77,35 @@ assert(
     ),
 );
 await key('right', false);
-assert.equal(byId('status').children[0].props.text, 'Updates 0 · Releases 1');
+assert.equal(
+  visualContent(byId('status')).props.text,
+  'Updates 0 · Releases 1',
+);
 const tweens = proof.queryAllByTag('tween');
-assert(
-  tweens.some(
-    (node) =>
-      node.props.field === 'scale' &&
-      JSON.stringify(node.props.targetVector) === '[1.08,1.08]' &&
-      node.props.duration === 0.25,
-  ),
+const focusedScale = tweens.filter(
+  (node) =>
+    node.props.field === 'scale' &&
+    node.props.targetValue === 1.08 &&
+    node.props.duration === 0.25,
+);
+assert.equal(focusedScale.length, 2);
+assert.deepEqual(
+  new Set(focusedScale.map((node) => node.props.axis)),
+  new Set(['x', 'y']),
 );
 for (const tween of tweens)
   await proof.fireEvent(tween, 'onAnimationState', [
     'stopped',
-    tween.props.targetVector ?? tween.props.targetValue,
+    tweenCompletionValue(tween),
   ]);
 await settle();
 assert.equal(proof.queryAllByTag('tween').length, 0);
-assert.deepEqual(byId('posters').props.translation, [-270, 0]);
+assert.deepEqual(localTranslation(byId('posters')), [-270, 0]);
 await key('OK');
-assert.equal(byId('status').children[0].props.text, 'Updates 1 · Releases 1');
+assert.equal(
+  visualContent(byId('status')).props.text,
+  'Updates 1 · Releases 1',
+);
 assert.deepEqual(
   cards().map((node) => node.props.id),
   ['poster-6', 'poster-5', 'poster-4', 'poster-3', 'poster-2', 'poster-1'],
@@ -91,7 +115,10 @@ for (let i = 0; i < 3; i++) {
   await key('play');
   assert.equal(queryId('details'), null);
   await key('play');
-  assert.equal(byId('details').children[0].props.text, 'SolidTV JSX on Roku');
+  assert.equal(
+    visualContent(byId('details')).props.text,
+    'SolidTV JSX on Roku',
+  );
 }
 await key('left');
 assert(proof.queryAllByTag('tween').length > 0);
@@ -106,7 +133,7 @@ for (let attempt = 0; attempt < 3; attempt++) {
   const remounted = await render(RokuProof);
   await settle(remounted);
   const status = () =>
-    remounted.getByProp('id', 'status').children[0].props.text;
+    visualContent(remounted.getByProp('id', 'status')).props.text;
   assert.equal(status(), 'Updates 0 · Releases 0');
   await key('right', false);
   await settle(remounted);
@@ -141,16 +168,16 @@ for (let attempt = 0; attempt < 3; attempt++) {
   for (const tween of remounted.queryAllByTag('tween')) {
     await remounted.fireEvent(tween, 'onAnimationState', [
       'stopped',
-      tween.props.targetVector ?? tween.props.targetValue,
+      tweenCompletionValue(tween),
     ]);
   }
   await settle(remounted);
-  assert.deepEqual(row.props.translation, [-1350, 0]);
+  assert.deepEqual(localTranslation(row), [-1350, 0]);
   remounted.dispose();
   await settle(remounted);
   assert.equal(remounted.queryAllByTag('tween').length, 0);
   assert.equal(remounted.getByTag('group').children.length, 0);
 }
 console.log(
-  'Roku native proof passed: layout, posters, text, keys, release, scroll, native Tween, keyed identity/order, Show, disposal.',
+  'Roku mocked SceneGraph checks passed: layout, posters, text, keys, release, scroll, Tween commands and events, keyed identity/order, Show, disposal.',
 );

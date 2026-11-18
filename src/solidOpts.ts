@@ -38,18 +38,7 @@ export default {
     if (node instanceof ElementNode) {
       if (node.parent!.rendered) {
         node.render(true);
-        if (renderer.insertNode) {
-          const siblings = parent.children;
-          let next: ElementNode | undefined;
-          for (let i = siblings.indexOf(node) + 1; i < siblings.length; i++) {
-            const child = siblings[i];
-            if (child instanceof ElementNode && child.rendered) {
-              next = child;
-              break;
-            }
-          }
-          renderer.insertNode(node, next);
-        }
+        renderer.insertNode?.(node);
       }
       if (prevParent !== undefined) {
         enqueueDelete(node, 1);

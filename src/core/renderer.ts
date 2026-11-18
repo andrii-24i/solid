@@ -46,11 +46,18 @@ export interface RendererBackend {
     props: Partial<IRendererTextNodeProps> & Partial<ITextNodeProps>,
   ): ElementNode['lng'];
   createShader: RendererMain['createShader'];
-  insertNode?: (node: ElementNode, before?: ElementNode) => void;
+  insertNode?: (node: ElementNode) => void;
 }
 
 export let renderer: RendererBackend;
 
 export function installRenderer(backend: RendererBackend) {
+  const previous = renderer;
   renderer = backend;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    if (renderer === backend) renderer = previous;
+  };
 }

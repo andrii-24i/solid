@@ -7,11 +7,16 @@ export function createNative(tag: string): DomNode {
   return tmTransaction.createElement(tag);
 }
 
-export function setNative(node: DomNode, name: string, value: TmValue | null) {
+export function setNative(
+  node: DomNode,
+  name: string,
+  value: TmValue | null,
+  previous?: TmValue,
+) {
   transactionManager.startTransaction();
   // The SDK implements null node-reference clearing but omits null from TmValue.
   // @ts-expect-error SDK Tween uses the same null targetNode cleanup.
-  tmTransaction.setProperty(node, name, value);
+  tmTransaction.setProperty(node, name, value, previous);
 }
 
 export function insertNative(parent: DomNode, node: DomNode, before?: DomNode) {

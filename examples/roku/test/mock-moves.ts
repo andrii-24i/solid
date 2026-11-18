@@ -4,7 +4,7 @@ import { transactionManager } from '@roku-sdk/common/transaction';
 import { tmTransaction } from '@roku-sdk/solid';
 import type { DomNode } from '@roku-sdk/interfaces';
 
-export async function verifySdkMoves() {
+export async function verifyMockMoves() {
   let parent: DomNode;
   let first: DomNode;
   let second: DomNode;
@@ -26,7 +26,7 @@ export async function verifySdkMoves() {
   assert.equal(
     children.length,
     2,
-    'SDK append moves an existing child without duplicating it',
+    'the patched SDK mock append moves an existing child without duplicating it',
   );
   assert.equal(children[0].r, secondRef);
   assert.equal(children[1].r, firstRef);
@@ -36,7 +36,7 @@ export async function verifySdkMoves() {
   assert.equal(
     children.length,
     2,
-    'SDK insert-before moves an existing child without duplicating it',
+    'the patched SDK mock insert-before moves an existing child without duplicating it',
   );
   assert.equal(children[0].r, firstRef);
   assert.equal(children[1].r, secondRef);

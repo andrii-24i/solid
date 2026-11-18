@@ -15,7 +15,11 @@ import {
   removeNative,
   setNative,
 } from './native.js';
-import { RokuAnimation } from './animation.js';
+import {
+  RokuAnimation,
+  type AnimationChannel,
+  type NativeAnimationTarget,
+} from './animation.js';
 
 type TextFields = Omit<IRendererTextNodeProps, keyof IRendererNodeProps>;
 export type RokuProps = Omit<IRendererNodeProps, 'parent'> &
@@ -65,15 +69,72 @@ const defaults = {
   fontWeight: undefined,
 } satisfies RokuProps;
 
-export interface RokuNode extends RokuProps {}
+type NativeUpdate =
+  | 'translationX'
+  | 'translationY'
+  | 'opacity'
+  | 'scaleX'
+  | 'scaleY'
+  | 'rotation'
+  | 'center'
+  | 'clipping'
+  | 'id'
+  | 'content'
+  | 'width'
+  | 'height'
+  | 'color'
+  | 'text'
+  | 'textAlign';
 
-export class RokuNode extends EventEmitter {
+const updates: Partial<Record<keyof RokuProps, readonly NativeUpdate[]>> = {
+  x: ['translationX'],
+  y: ['translationY'],
+  alpha: ['opacity'],
+  scale: ['scaleX', 'scaleY'],
+  scaleX: ['scaleX'],
+  scaleY: ['scaleY'],
+  mount: ['translationX', 'translationY'],
+  mountX: ['translationX'],
+  mountY: ['translationY'],
+  w: ['translationX', 'width', 'center', 'clipping'],
+  h: ['translationY', 'height', 'center', 'clipping'],
+  rotation: ['rotation'],
+  pivot: ['center'],
+  pivotX: ['center'],
+  pivotY: ['center'],
+  clipping: ['clipping'],
+  data: ['id'],
+  src: ['content'],
+  color: ['color'],
+  text: ['text'],
+  textAlign: ['textAlign'],
+};
+const channels: Partial<Record<keyof RokuProps, readonly AnimationChannel[]>> =
+  {
+    x: ['x'],
+    y: ['y'],
+    alpha: ['alpha'],
+    scale: ['scaleX', 'scaleY'],
+    scaleX: ['scaleX'],
+    scaleY: ['scaleY'],
+    mount: ['x', 'y'],
+    mountX: ['x'],
+    mountY: ['y'],
+    w: ['x'],
+    h: ['y'],
+  };
+
+export class RokuNode extends EventEmitter implements RokuProps {
   readonly native: DomNode;
+  readonly childHost: DomNode;
   readonly props: RokuProps;
+  private readonly vertical: DomNode;
+  private readonly horizontalScale: DomNode;
+  private readonly verticalScale: DomNode;
   private content?: DomNode;
   private contentKind?: 'label' | 'poster' | 'rectangle';
   private destroyed = false;
-  readonly animations = new Set<RokuAnimation>();
+  private readonly animations = new Map<AnimationChannel, RokuAnimation>();
   readonly children = new Set<RokuNode>();
   readonly id: number;
   private static nextId = 0;
@@ -99,7 +160,27 @@ export class RokuNode extends EventEmitter {
     };
     this.validate(props);
     this.native = host ?? createNative('group');
-    this.sync();
+    this.vertical = createNative('group');
+    this.horizontalScale = createNative('group');
+    this.verticalScale = createNative('group');
+    this.childHost = createNative('group');
+    insertNative(this.native, this.vertical);
+    insertNative(this.vertical, this.horizontalScale);
+    insertNative(this.horizontalScale, this.verticalScale);
+    insertNative(this.verticalScale, this.childHost);
+    for (const update of [
+      'translationX',
+      'translationY',
+      'opacity',
+      'scaleX',
+      'scaleY',
+      'rotation',
+      'center',
+      'clipping',
+      'id',
+      'content',
+    ] satisfies NativeUpdate[])
+      this.updateNative(update);
     this.parent = props.parent ?? null;
   }
 
@@ -146,13 +227,22 @@ export class RokuNode extends EventEmitter {
 
   write<K extends keyof RokuProps>(key: K, value: RokuProps[K]) {
     if (this.destroyed) return;
-    let interrupted = false;
-    for (const animation of this.animations)
-      if (animation.has(key)) {
-        animation.stop();
-        interrupted = true;
+    if (key === 'scale' && typeof value === 'number') {
+      if (this.scaleX === value && this.scaleY === value) {
+        this.props.scale = value;
+        return;
       }
-    if (!interrupted && this.props[key] === value) return;
+    } else if (key === 'mount' && typeof value === 'number') {
+      if (this.mountX === value && this.mountY === value) {
+        this.props.mount = value;
+        return;
+      }
+    } else if (key === 'pivot' && typeof value === 'number') {
+      if (this.pivotX === value && this.pivotY === value) {
+        this.props.pivot = value;
+        return;
+      }
+    } else if (this.props[key] === value) return;
     if (
       key === 'shader' ||
       key === 'texture' ||
@@ -161,16 +251,24 @@ export class RokuNode extends EventEmitter {
       key === 'fontWeight'
     )
       this.validate({ [key]: value });
+    for (const channel of channels[key] ?? []) {
+      if (
+        (key === 'w' && this.mountX === 0) ||
+        (key === 'h' && this.mountY === 0)
+      )
+        continue;
+      this.animations.get(channel)?.stop();
+    }
     if (key === 'parent') {
       const parent = value instanceof RokuNode ? value : null;
-      if (this.props.parent) {
-        this.props.parent.children.delete(this);
-        removeNative(this.props.parent.native, this.native);
+      if (this.parent) {
+        this.parent.children.delete(this);
+        removeNative(this.parent.childHost, this.native);
       }
       this.props.parent = parent;
       if (parent) {
         parent.children.add(this);
-        insertNative(parent.native, this.native);
+        insertNative(parent.childHost, this.native);
       }
       return;
     }
@@ -181,70 +279,191 @@ export class RokuNode extends EventEmitter {
       this.props.mountX = this.props.mountY = value;
     if (key === 'pivot' && typeof value === 'number')
       this.props.pivotX = this.props.pivotY = value;
-    this.sync();
+    for (const update of updates[key] ?? []) {
+      if (
+        (key === 'w' && update === 'translationX' && this.mountX === 0) ||
+        (key === 'h' && update === 'translationY' && this.mountY === 0) ||
+        ((key === 'w' || key === 'h') &&
+          update === 'clipping' &&
+          !this.clipping)
+      )
+        continue;
+      this.updateNative(update);
+    }
   }
 
-  sync() {
+  claimAnimation(animation: RokuAnimation, owned: readonly AnimationChannel[]) {
+    if (this.destroyed) return false;
+    for (const channel of owned) this.animations.get(channel)?.stop();
+    for (const channel of owned) this.animations.set(channel, animation);
+    return true;
+  }
+
+  releaseAnimation(
+    animation: RokuAnimation,
+    owned: readonly AnimationChannel[],
+  ) {
+    for (const channel of owned)
+      if (this.animations.get(channel) === animation)
+        this.animations.delete(channel);
+  }
+
+  animationTarget(channel: AnimationChannel): NativeAnimationTarget {
+    switch (channel) {
+      case 'x':
+        return {
+          node: this.native,
+          field: 'translation',
+          axis: 'x',
+          preserveOther: 0,
+          offset: this.mountX * this.w,
+        };
+      case 'y':
+        return {
+          node: this.vertical,
+          field: 'translation',
+          axis: 'y',
+          preserveOther: 0,
+          offset: this.mountY * this.h,
+        };
+      case 'scaleX':
+        return {
+          node: this.horizontalScale,
+          field: 'scale',
+          axis: 'x',
+          preserveOther: 1,
+          offset: 0,
+        };
+      case 'scaleY':
+        return {
+          node: this.verticalScale,
+          field: 'scale',
+          axis: 'y',
+          preserveOther: 1,
+          offset: 0,
+        };
+      case 'alpha':
+        return { node: this.native, field: 'opacity', axis: 'all', offset: 0 };
+    }
+  }
+
+  observeAnimation(channel: AnimationChannel, value: number) {
+    this.props[channel] = value;
+    if (
+      (channel === 'scaleX' || channel === 'scaleY') &&
+      this.scaleX === this.scaleY
+    )
+      this.props.scale = value;
+    const update: Record<AnimationChannel, NativeUpdate> = {
+      x: 'translationX',
+      y: 'translationY',
+      alpha: 'opacity',
+      scaleX: 'scaleX',
+      scaleY: 'scaleY',
+    };
+    this.updateNative(update[channel]);
+  }
+
+  private updateNative(update: NativeUpdate) {
     const p = this.props;
-    if (
-      ![...this.animations].some(
-        (animation) => animation.has('x') || animation.has('y'),
-      )
-    )
-      setNative(this.native, 'translation', [
-        p.x - p.mountX * p.w,
-        p.y - p.mountY * p.h,
-      ]);
-    if (![...this.animations].some((animation) => animation.has('alpha')))
-      setNative(this.native, 'opacity', p.alpha);
-    if (
-      ![...this.animations].some(
-        (animation) =>
-          animation.has('scale') ||
-          animation.has('scaleX') ||
-          animation.has('scaleY'),
-      )
-    )
-      setNative(this.native, 'scale', [p.scaleX, p.scaleY]);
-    setNative(this.native, 'rotation', -p.rotation);
-    setNative(this.native, 'scaleRotateCenter', [
-      p.pivotX * p.w,
-      p.pivotY * p.h,
-    ]);
-    setNative(
-      this.native,
-      'clippingRect',
-      p.clipping ? [0, 0, p.w, p.h] : [0, 0, 0, 0],
-    );
-    if (typeof p.data?.testId === 'string')
-      setNative(this.native, 'id', p.data.testId);
+    switch (update) {
+      case 'translationX':
+        setNative(this.native, 'translation', [p.x - p.mountX * p.w, 0]);
+        return;
+      case 'translationY':
+        setNative(this.vertical, 'translation', [0, p.y - p.mountY * p.h]);
+        return;
+      case 'opacity':
+        setNative(this.native, 'opacity', p.alpha);
+        return;
+      case 'scaleX':
+        setNative(this.horizontalScale, 'scale', [p.scaleX, 1]);
+        return;
+      case 'scaleY':
+        setNative(this.verticalScale, 'scale', [1, p.scaleY]);
+        return;
+      case 'rotation':
+        setNative(this.vertical, 'rotation', -p.rotation);
+        return;
+      case 'center':
+        for (const group of [
+          this.vertical,
+          this.horizontalScale,
+          this.verticalScale,
+        ])
+          setNative(group, 'scaleRotateCenter', [
+            p.pivotX * p.w,
+            p.pivotY * p.h,
+          ]);
+        return;
+      case 'clipping':
+        setNative(
+          this.childHost,
+          'clippingRect',
+          p.clipping ? [0, 0, p.w, p.h] : [0, 0, 0, 0],
+        );
+        return;
+      case 'id':
+        setNative(
+          this.native,
+          'id',
+          typeof p.data?.testId === 'string' ? p.data.testId : '',
+        );
+        return;
+      case 'content':
+        this.updateContent();
+        return;
+    }
+    if (!this.content) return;
+    switch (update) {
+      case 'width':
+        setNative(this.content, 'width', p.w);
+        return;
+      case 'height':
+        setNative(this.content, 'height', p.h);
+        return;
+      case 'color':
+        if (this.contentKind !== 'poster')
+          setNative(
+            this.content,
+            'color',
+            `0x${(p.color >>> 0).toString(16).padStart(8, '0')}`,
+          );
+        return;
+      case 'text':
+        if (this.contentKind === 'label')
+          setNative(this.content, 'text', p.text ?? '');
+        return;
+      case 'textAlign':
+        if (this.contentKind === 'label')
+          setNative(this.content, 'horizAlign', p.textAlign ?? 'left');
+        return;
+    }
+  }
+
+  private updateContent() {
     const kind =
-      this.kind === 'text' ? 'label' : p.src ? 'poster' : 'rectangle';
-    if (kind !== this.contentKind) {
-      if (this.content) removeNative(this.native, this.content);
-      this.content = createNative(kind);
-      this.contentKind = kind;
-      insertNative(this.native, this.content, this.native.c?.[0]);
+      this.kind === 'text' ? 'label' : this.src ? 'poster' : 'rectangle';
+    if (kind === this.contentKind) {
+      if (kind === 'poster' && this.content)
+        setNative(this.content, 'uri', this.src ?? '');
+      return;
     }
-    const content = this.content;
-    if (!content) return;
-    setNative(content, 'width', p.w);
-    setNative(content, 'height', p.h);
+    if (this.content) removeNative(this.childHost, this.content);
+    this.content = createNative(kind);
+    this.contentKind = kind;
+    insertNative(this.childHost, this.content, this.childHost.c?.[0]);
+    this.updateNative('width');
+    this.updateNative('height');
     if (kind === 'poster') {
-      setNative(content, 'uri', p.src ?? '');
-      setNative(content, 'loadDisplayMode', 'scaleToFit');
-    } else {
-      setNative(
-        content,
-        'color',
-        `0x${(p.color >>> 0).toString(16).padStart(8, '0')}`,
-      );
-    }
+      setNative(this.content, 'uri', this.src ?? '');
+      setNative(this.content, 'loadDisplayMode', 'scaleToFit');
+    } else this.updateNative('color');
     if (kind === 'label') {
-      setNative(content, 'text', p.text ?? '');
-      setNative(content, 'font', 'font:MediumSystemFont');
-      setNative(content, 'horizAlign', p.textAlign ?? 'left');
-      setNative(content, 'vertAlign', 'center');
+      this.updateNative('text');
+      this.updateNative('textAlign');
+      setNative(this.content, 'font', 'font:MediumSystemFont');
+      setNative(this.content, 'vertAlign', 'center');
     }
   }
 
@@ -257,22 +476,258 @@ export class RokuNode extends EventEmitter {
 
   destroy() {
     if (this.destroyed) return;
-    for (const animation of this.animations) animation.stop();
+    for (const animation of this.animations.values()) animation.stop();
     for (const child of this.children) child.destroy();
     this.parent = null;
-    if (this.content) removeNative(this.native, this.content);
+    removeNative(this.native, this.vertical);
     this.removeAllListeners();
     this.destroyed = true;
   }
-}
 
-for (const key of Object.keys(defaults) as (keyof RokuProps)[]) {
-  Object.defineProperty(RokuNode.prototype, key, {
-    get(this: RokuNode) {
-      return this.props[key];
-    },
-    set(this: RokuNode, value: RokuProps[typeof key]) {
-      this.write(key, value);
-    },
-  });
+  get x(): RokuProps['x'] {
+    return this.props.x;
+  }
+  set x(value: RokuProps['x']) {
+    this.write('x', value);
+  }
+  get y(): RokuProps['y'] {
+    return this.props.y;
+  }
+  set y(value: RokuProps['y']) {
+    this.write('y', value);
+  }
+  get w(): RokuProps['w'] {
+    return this.props.w;
+  }
+  set w(value: RokuProps['w']) {
+    this.write('w', value);
+  }
+  get h(): RokuProps['h'] {
+    return this.props.h;
+  }
+  set h(value: RokuProps['h']) {
+    this.write('h', value);
+  }
+  get alpha(): RokuProps['alpha'] {
+    return this.props.alpha;
+  }
+  set alpha(value: RokuProps['alpha']) {
+    this.write('alpha', value);
+  }
+  get color(): RokuProps['color'] {
+    return this.props.color;
+  }
+  set color(value: RokuProps['color']) {
+    this.write('color', value);
+  }
+  get scale(): RokuProps['scale'] {
+    return this.props.scale;
+  }
+  set scale(value: RokuProps['scale']) {
+    this.write('scale', value);
+  }
+  get scaleX(): RokuProps['scaleX'] {
+    return this.props.scaleX;
+  }
+  set scaleX(value: RokuProps['scaleX']) {
+    this.write('scaleX', value);
+  }
+  get scaleY(): RokuProps['scaleY'] {
+    return this.props.scaleY;
+  }
+  set scaleY(value: RokuProps['scaleY']) {
+    this.write('scaleY', value);
+  }
+  get rotation(): RokuProps['rotation'] {
+    return this.props.rotation;
+  }
+  set rotation(value: RokuProps['rotation']) {
+    this.write('rotation', value);
+  }
+  get mount(): RokuProps['mount'] {
+    return this.props.mount;
+  }
+  set mount(value: RokuProps['mount']) {
+    this.write('mount', value);
+  }
+  get mountX(): RokuProps['mountX'] {
+    return this.props.mountX;
+  }
+  set mountX(value: RokuProps['mountX']) {
+    this.write('mountX', value);
+  }
+  get mountY(): RokuProps['mountY'] {
+    return this.props.mountY;
+  }
+  set mountY(value: RokuProps['mountY']) {
+    this.write('mountY', value);
+  }
+  get pivot(): RokuProps['pivot'] {
+    return this.props.pivot;
+  }
+  set pivot(value: RokuProps['pivot']) {
+    this.write('pivot', value);
+  }
+  get pivotX(): RokuProps['pivotX'] {
+    return this.props.pivotX;
+  }
+  set pivotX(value: RokuProps['pivotX']) {
+    this.write('pivotX', value);
+  }
+  get pivotY(): RokuProps['pivotY'] {
+    return this.props.pivotY;
+  }
+  set pivotY(value: RokuProps['pivotY']) {
+    this.write('pivotY', value);
+  }
+  get zIndex(): RokuProps['zIndex'] {
+    return this.props.zIndex;
+  }
+  set zIndex(value: RokuProps['zIndex']) {
+    this.write('zIndex', value);
+  }
+  get clipping(): RokuProps['clipping'] {
+    return this.props.clipping;
+  }
+  set clipping(value: RokuProps['clipping']) {
+    this.write('clipping', value);
+  }
+  get parent(): RokuProps['parent'] {
+    return this.props.parent;
+  }
+  set parent(value: RokuProps['parent']) {
+    this.write('parent', value);
+  }
+  get ignoreParentAlpha(): RokuProps['ignoreParentAlpha'] {
+    return this.props.ignoreParentAlpha;
+  }
+  set ignoreParentAlpha(value: RokuProps['ignoreParentAlpha']) {
+    this.write('ignoreParentAlpha', value);
+  }
+  get placeholderColor(): RokuProps['placeholderColor'] {
+    return this.props.placeholderColor;
+  }
+  set placeholderColor(value: RokuProps['placeholderColor']) {
+    this.write('placeholderColor', value);
+  }
+  get autosize(): RokuProps['autosize'] {
+    return this.props.autosize;
+  }
+  set autosize(value: RokuProps['autosize']) {
+    this.write('autosize', value);
+  }
+  get rtl(): RokuProps['rtl'] {
+    return this.props.rtl;
+  }
+  set rtl(value: RokuProps['rtl']) {
+    this.write('rtl', value);
+  }
+  get data(): RokuProps['data'] {
+    return this.props.data;
+  }
+  set data(value: RokuProps['data']) {
+    this.write('data', value);
+  }
+  get src(): RokuProps['src'] {
+    return this.props.src;
+  }
+  set src(value: RokuProps['src']) {
+    this.write('src', value);
+  }
+  get texture(): RokuProps['texture'] {
+    return this.props.texture;
+  }
+  set texture(value: RokuProps['texture']) {
+    this.write('texture', value);
+  }
+  get textureOptions(): RokuProps['textureOptions'] {
+    return this.props.textureOptions;
+  }
+  set textureOptions(value: RokuProps['textureOptions']) {
+    this.write('textureOptions', value);
+  }
+  get shader(): RokuProps['shader'] {
+    return this.props.shader;
+  }
+  set shader(value: RokuProps['shader']) {
+    this.write('shader', value);
+  }
+  get colorTop(): RokuProps['colorTop'] {
+    return this.props.colorTop;
+  }
+  set colorTop(value: RokuProps['colorTop']) {
+    this.write('colorTop', value);
+  }
+  get colorBottom(): RokuProps['colorBottom'] {
+    return this.props.colorBottom;
+  }
+  set colorBottom(value: RokuProps['colorBottom']) {
+    this.write('colorBottom', value);
+  }
+  get colorLeft(): RokuProps['colorLeft'] {
+    return this.props.colorLeft;
+  }
+  set colorLeft(value: RokuProps['colorLeft']) {
+    this.write('colorLeft', value);
+  }
+  get colorRight(): RokuProps['colorRight'] {
+    return this.props.colorRight;
+  }
+  set colorRight(value: RokuProps['colorRight']) {
+    this.write('colorRight', value);
+  }
+  get colorTl(): RokuProps['colorTl'] {
+    return this.props.colorTl;
+  }
+  set colorTl(value: RokuProps['colorTl']) {
+    this.write('colorTl', value);
+  }
+  get colorTr(): RokuProps['colorTr'] {
+    return this.props.colorTr;
+  }
+  set colorTr(value: RokuProps['colorTr']) {
+    this.write('colorTr', value);
+  }
+  get colorBl(): RokuProps['colorBl'] {
+    return this.props.colorBl;
+  }
+  set colorBl(value: RokuProps['colorBl']) {
+    this.write('colorBl', value);
+  }
+  get colorBr(): RokuProps['colorBr'] {
+    return this.props.colorBr;
+  }
+  set colorBr(value: RokuProps['colorBr']) {
+    this.write('colorBr', value);
+  }
+  get text(): RokuProps['text'] {
+    return this.props.text;
+  }
+  set text(value: RokuProps['text']) {
+    this.write('text', value);
+  }
+  get textAlign(): RokuProps['textAlign'] {
+    return this.props.textAlign;
+  }
+  set textAlign(value: RokuProps['textAlign']) {
+    this.write('textAlign', value);
+  }
+  get fontFamily(): RokuProps['fontFamily'] {
+    return this.props.fontFamily;
+  }
+  set fontFamily(value: RokuProps['fontFamily']) {
+    this.write('fontFamily', value);
+  }
+  get fontSize(): RokuProps['fontSize'] {
+    return this.props.fontSize;
+  }
+  set fontSize(value: RokuProps['fontSize']) {
+    this.write('fontSize', value);
+  }
+  get fontWeight(): RokuProps['fontWeight'] {
+    return this.props.fontWeight;
+  }
+  set fontWeight(value: RokuProps['fontWeight']) {
+    this.write('fontWeight', value);
+  }
 }

@@ -6,7 +6,12 @@ import { ProofScreen } from './screen';
 export function RokuProof() {
   const keys = createRokuKeyTarget();
   return (
-    <KeyHandler handleAllKeys gainFocus onKeyEvent={keys.dispatch}>
+    <KeyHandler
+      keys={['left', 'right', 'up', 'down', 'OK', 'play']}
+      bubbleUnhandledKeys
+      gainFocus
+      onKeyEvent={keys.dispatch}
+    >
       <group
         ref={(host) =>
           onCleanup(

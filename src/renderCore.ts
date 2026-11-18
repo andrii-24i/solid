@@ -11,7 +11,6 @@ import {
   createRoot,
   type Component,
 } from 'solid-js';
-import type { ElementNode } from './core/elementNode.js';
 import type { SolidNode } from './types.js';
 import { activeElement } from './core/activeElement.js';
 
@@ -20,14 +19,22 @@ const solidRenderer = solidCreateRenderer<SolidNode>(nodeOpts);
 export const rootNode = nodeOpts.createElement('App');
 
 export const render = function (code: () => JSXElement) {
-  // @ts-expect-error - code is jsx element and not SolidElement yet
-  return solidRenderer.render(code, rootNode);
+  let dispose: (() => void) | undefined;
+  try {
+    createRoot((disposeOwner) => {
+      dispose = disposeOwner;
+      solidRenderer.insert(rootNode, code());
+    });
+  } catch (error) {
+    try {
+      dispose?.();
+    } catch (cleanupError) {
+      console.error('SolidTV render cleanup failed', cleanupError);
+    }
+    throw error;
+  }
+  return dispose!;
 };
-
-export function renderInto(code: () => JSXElement, node: ElementNode) {
-  // @ts-expect-error Solid JSX is instantiated as SolidNode by this compiler.
-  return solidRenderer.render(code, node);
-}
 
 export const {
   effect,
@@ -50,23 +57,27 @@ export { mergeProps } from './mergeProps.js';
 type Task = () => void;
 const taskQueue: Task[] = [];
 let tasksEnabled = false;
+let taskGeneration = 0;
+let taskTimer: ReturnType<typeof setTimeout> | undefined;
 
 createRoot(() => {
   createRenderEffect(() => {
     // should change whenever a keypress occurs, so we disable the task queue
     // until the renderer is idle again.
     activeElement();
-    tasksEnabled = false;
+    setTasksEnabled(false);
   });
 });
 
 export function setTasksEnabled(enabled: boolean): void {
   tasksEnabled = enabled;
   if (enabled) processTasks();
+  else cancelTaskTimer();
 }
 
 export function clearTasks(): void {
   taskQueue.length = 0;
+  cancelTaskTimer();
 }
 
 export function scheduleTask(
@@ -81,16 +92,27 @@ export function scheduleTask(
   processTasks();
 }
 
+function cancelTaskTimer(): void {
+  taskGeneration++;
+  if (taskTimer !== undefined) clearTimeout(taskTimer);
+  taskTimer = undefined;
+}
+
 function processTasks(): void {
-  if (tasksEnabled && taskQueue.length) {
-    setTimeout(() => {
-      const task = taskQueue.shift();
-      if (task) {
-        task();
-        processTasks();
-      }
-    }, Config.taskDelay || 50);
-  }
+  if (!tasksEnabled || taskQueue.length === 0 || taskTimer !== undefined)
+    return;
+  const generation = taskGeneration;
+  taskTimer = setTimeout(() => {
+    if (generation !== taskGeneration) return;
+    taskTimer = undefined;
+    if (!tasksEnabled) return;
+    const task = taskQueue.shift();
+    try {
+      task?.();
+    } finally {
+      processTasks();
+    }
+  }, Config.taskDelay || 50);
 }
 
 /**
