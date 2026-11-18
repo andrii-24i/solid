@@ -50,6 +50,8 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Install Roku example dependencies
         run: pnpm --dir examples/roku install --frozen-lockfile
+      - name: Lint Roku example
+        run: pnpm exec oxlint examples/roku
       - name: Test Roku with mocked SceneGraph APIs
         run: pnpm test:roku
       - name: Build and validate production Roku package

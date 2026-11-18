@@ -7,6 +7,7 @@ Use Node 24 or later and pnpm 10.33.4. From the repository root, run these comma
 ```sh
 pnpm install --frozen-lockfile
 pnpm --dir examples/roku install --frozen-lockfile
+pnpm exec oxlint examples/roku
 pnpm test:roku
 pnpm --dir examples/roku build
 ```
@@ -58,7 +59,7 @@ The SDK mock checks transaction commands and lifecycle behavior. Tests inject co
 
 `check:package` checks every emitted SDK module for duplicate copies and rejects browser renderer modules. Regression checks inject duplicates and bundle real browser modules to prove the gate rejects them. A separate check executes the manifest-selected packaged JavaScript through the real SDK bootstrap, mocking only hardware APIs. It verifies that SolidTV writes use the initialized string interner and transaction runtime. For a bytecode package, this check executes the compiler-input JavaScript and explicitly reports that bytecode was not executed.
 
-The Node 24 CI job runs the Roku mock checks, the SDK production build, and all package checks. The existing core job remains on Node 22. Package and bytecode builds verify packaging and compilation, not device execution.
+The Node 24 CI job installs and lints the example, then runs the Roku mock checks, the SDK production build, and all package checks. The existing core job remains on Node 22 and lints without the example's separate dependencies. Package and bytecode builds verify packaging and compilation, not device execution.
 
 There is no hardware result. Screen appearance, font metrics, image decoding, remote timing, animation smoothness, and execution on the device's Hermes runtime remain unverified.
 
